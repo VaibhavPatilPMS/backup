@@ -1,0 +1,642 @@
+const API_VERSION_ADMIN = "v1";
+export const API_PREFIX_ROUTE = `/admin/api/${API_VERSION_ADMIN}`;
+export const API_PREFIX_PROJECT_ROUTE = `/project/api/${API_VERSION_ADMIN}`;
+
+// Authentication API's
+//#region Login
+
+Description: Logs in a user with username and password.
+
+Method: POST
+
+URL: /admin/api/v1/authentication
+
+Payload:
+{
+  "strategy": "local",
+  "username": "<string>",
+  "password": "<string>"
+}
+
+Response:
+{
+  "accessToken": "<JWT token>",
+  "authentication": {
+    "strategy": "local"
+  },
+  "user": {
+    "id": "<user-id>",
+    "email": "<email>",
+    "role": "<role>"
+  }
+}
+
+Service Used: /authentication.js
+
+//#endregion
+
+//#region Logout
+
+Description: Logs out the authenticated user by invalidating the refresh token stored in the database.
+
+Method: POST
+
+URL: /admin/api/v1/logout
+
+Payload:
+{
+  "refreshToken": "<refresh-token>"
+}
+
+Response:
+{
+  "result": "Logout successful"
+}
+
+Hooks Used:
+MethodNotAllowed()
+
+Service Location: services/refresh-token
+
+//#endregion
+
+//#region Forgot Password
+
+Description: This generates a temporary password and send to the users email
+
+Method: POST
+
+URL: /admin/api/v1/users/forgotpassword
+
+Payload:
+{
+  "username": "vaibhavUser"
+}
+
+Response:
+{
+  "message":"Email sent successfully",
+  "status":201,
+  "code":201
+}
+
+Hooks Used:
+generateTemporaryPassword()
+forgotpasswordmail()
+
+Service Location: users/services/forgotpassword.class.js
+
+//#endregion
+
+//#region Change Password
+
+Description: This API is used to change the password of the user.
+
+Method: POST
+
+URL: /admin/api/v1/users/changepassword
+
+Payload:
+{
+  "username": "vaibhavUser",
+  "currentpassword": "oldPassword123",
+  "newpassword": "newPassword123",
+  "confirmedpassword": "newPassword123"
+}
+
+Response:
+{
+  "status": 200,
+  "msg": "Password changed successfully",
+  "record": {
+    "_id": "<user-id>",
+    "username": "vaibhavUser",
+    "password": "<hashed-password>",
+    ...
+  }
+}
+
+Hooks Used:
+authenticate("jwt");  // Used as middleware
+
+Service Location: users/services/changepassword.js
+
+//#endregion
+
+//#region Create User
+
+// Description: This API is used to create a new user in the system.
+
+// Method: POST
+
+// URL: /admin/api/v1/users
+
+// Payload:
+// {
+//   "username": "john.doe",
+//   "email": "john.doe@mail.com",
+//   "phoneNumber": "9876543210",
+//   "firstName": "John",
+//   "lastName": "Doe",
+//   "designation": "Safety Officer",
+//   "projects": [
+//     {
+//       "projectCode": "PROJ001",
+//       "roleCode": "ADMIN",
+//       "isActive": true
+//     }
+//   ],
+//   "isAdmin": false,
+//   "type": "STAFF",
+//   "profilePic": file
+// }
+
+// Response:
+// {
+//   "_id": "65a1bcf123",
+//   "username": "john.doe",
+//   "email": "john.doe@mail.com",
+//   "firstName": "John",
+//   "lastName": "Doe",
+//   "designation": "Safety Officer",
+//   "projects": [...],
+//   "profilePic": {
+//     "filename": "profile_123.png"
+//   }
+// }
+
+// Hooks Used:
+// Before:
+// checkDuplicateUser(),
+// generatepassword(),
+// hashPassword("password"),
+// uploadProfile(),
+// freedemouserHook(),
+
+// After:
+// createrole(),
+// registrationemail(),
+// savestaff(),
+// authenticationForFreemiumProject(),
+
+// Service Location: services/users/users.service.js
+
+//#endregion
+
+//#region Get Users 
+
+Description: This API retrieves a list of users based on query parameters.
+
+Method: GET
+
+URL: /admin/api/v1/users
+
+Query Parameters:
+{
+  "$limit": 10,
+  "$skip": 0,
+  "$sort[createdAt]": -1,
+  "username[$regex]": "john",
+  "projects.projectName": "Project A"
+}
+
+Response:
+{
+  "total": 42,
+  "limit": 10,
+  "skip": 0,
+  "data": [
+    {
+      "_id": "65a1bcf123",
+      "firstName": "John",
+      "lastName": "Doe",
+      "username": "john.doe",
+      "designation": "Safety Officer",
+      "email": "john@mail.com",
+      "projects": [...],
+      "isActive": true
+    }
+  ]
+}
+
+Hooks Used:
+selectLimitSkip()
+userfilter()
+protect("password")
+
+//#endregion
+
+//#region Get User By Id
+
+Description: This API retrieves a user by their unique identifier.
+
+Method: GET
+
+URL: /admin/api/v1/users/:id
+
+Response:
+{
+  "_id": "65a1bcf123",
+  "username": "john.doe",
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@mail.com",
+  "projects": [
+    {
+      "projectCode": "PRJ001",
+      "projectName": "Site A",
+      "roleCode": "ADMIN",
+      "isActive": true,
+      "isPlanExpired": false,
+      "expiryAfterTwoMonths": true,
+      "endDate": "2026-03-31"
+    }
+  ],
+  "profilePic": {
+    "filename": "john.png"
+  }
+}
+
+Hooks Used:
+authenticate("jwt")
+addsubscriptiondetails()
+protect("password")
+
+//#endregion
+
+//#region Create Role
+
+Description: Create a new role with Unique role name and Auto-generated role code
+
+Method: POST
+
+URL: /admin/api/v1/roles
+
+Payload:
+{
+  "roleName": "Safety Officer",
+  "permissions": ["INCIDENT_CREATE", "INCIDENT_VIEW"]
+}
+
+Response:
+{
+  "_id": "65fa...",
+  "roleName": "Safety Officer",
+  "roleCode": "RL839201",
+  "permissions": ["INCIDENT_CREATE", "INCIDENT_VIEW"],
+  "createdAt": "2026-01-30T10:30:00Z"
+}
+
+Hooks Used:
+authenticate("jwt"),
+checkroleExist(),
+generateRoleCodeHook()
+
+Service Location: services/roles/roles.service.js
+
+//#endregion
+
+//#region Get Roles
+
+Description: Retrieve a list of roles with optional search and pagination.
+
+Method: GET
+
+URL: /admin/api/v1/roles
+
+Response:
+{
+  "total": 1,
+  "limit": 10,
+  "skip": 0,
+  "data": [
+    {
+      "_id": "65fa...",
+      "roleName": "Safety Officer",
+      "roleCode": "RL839201"
+    }
+  ]
+}
+
+Hooks Used:
+searchFilter()
+
+Service Location: services/roles/roles.service.js
+
+//#endregion
+
+//#region Get Role By Id
+
+Description: Retrieve a role by its unique identifier.
+
+Method: GET
+
+URL: /admin/api/v1/roles/:id
+
+Response:
+{
+  "_id": "65fa...",
+  "roleName": "Safety Officer",
+  "roleCode": "RL839201",
+  "permissions": [...]
+}
+
+Service Location: services/roles/roles.service.js
+
+//#endregion
+
+//#region Update Role
+
+Description: Update an existing role's details.
+
+Method: PATCH, PUT
+
+URL: /admin/api/v1/roles/:id
+
+Payload:
+{
+  "roleName": "Senior Safety Officer",
+  "permissions": ["INCIDENT_CREATE", "INCIDENT_VIEW", "INCIDENT_EDIT"]
+}
+
+Response:
+{
+  "_id": "65fa...",
+  "roleName": "Senior Safety Officer",
+  "roleCode": "RL839201",
+  "permissions": ["INCIDENT_CREATE", "INCIDENT_VIEW", "INCIDENT_EDIT"]
+}
+
+Service Location: services/roles/roles.service.js
+
+//#endregion
+
+//#region Delete Role
+
+Description: Delete a role by its unique identifier.
+
+Method: DELETE
+
+URL: /admin/api/v1/roles/:id
+
+Response:
+{
+  "message": "Role deleted successfully"
+}
+
+Service Location: services/roles/roles.service.js
+
+//#endregion
+
+//#region Get Staffs
+
+Description: Fetch paginated list of staff with search/filter capabilities
+
+Method: GET
+
+URL: /admin/api/v1/staffs
+
+Query Parameters:
+limit, skip - Pagination
+staffName, staffCode, contactNumber - Search filters
+gender, isApplicationUser, contractorFirmName - Filters
+Date ranges (createdAtFrom, createdAtTo, etc.)
+
+Response: Paginated list of staff objects
+
+Hooks Used:
+before: authenticate("jwt"), selectLimitSkip(), stafffilters()
+after: getStaffProject() (Adds legal entity info)
+
+Frontend Function: getAllStaffs(), getAllStaffsForNonAdmin()
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Get Staff By Id
+
+Description: Get specific staff by MongoDB _id
+
+Method: GET
+
+URL: /admin/api/v1/staffs/:id (where :id is MongoDB _id)
+
+Response: Single staff object
+
+Hooks Used:
+before: authenticate("jwt"), selectLimitSkip()
+
+Frontend Function: getStaffById() (Note: Actually queries by staffCode, not _id)
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Create Staff
+
+Description: Create new staff record with file uploads
+
+Method: POST
+
+URL: /admin/api/v1/staffs
+
+Payload: Multipart form data
+
+Text fields: firstName, lastName, contactNumber, designation, etc.
+
+File fields: profilePhoto, idProofPhotos[]
+
+Arrays: idProofType[], projectList[] (for assigning to projects)
+
+Response: Created staff object
+
+Hooks Used:
+before: authenticate("jwt"), validateStaffPhoto(), checkDuplicateStaff(), staffCodeGenerateId()
+after: uploadStaffPhoto()
+
+error: Custom error handler for duplicate staffCode
+
+Frontend Function: staffBulkUpload() (for bulk) - Single create not shown
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Update Staff
+
+Description: Update staff information with file uploads
+
+Method: PATCH
+
+URL: /admin/api/v1/staffs/:id
+
+Payload: Multipart form data (similar to POST)
+
+Response: Updated staff object
+
+Hooks Used:
+before:authenticate("jwt"),validateStaffPhoto(),checkDuplicateStaff(),updateStaffProjectIfNotAvailable()
+after: uploadStaffPhoto(), updateApplicationUser(), updateprojectstaff()
+
+Frontend Function: updateStaff()
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Delete Staff
+
+Description: Remove staff record
+
+Method: DELETE
+
+URL: /admin/api/v1/staffs/:id
+
+Response: Deleted staff object
+
+Hooks Used:
+before: authenticate("jwt")
+
+Frontend Function: Not shown in frontend code
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Get Project Staff
+
+Description: Get paginated staff list for a specific project
+
+Method: GET
+
+URL: /project/api/v1/:projectCode/projectstaffs
+
+Query Parameters: Similar to admin staff API
+
+Response: Paginated list of project staff
+
+Frontend Function: getProjectStaff(), getDownloadAllProjectStaffs()
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Get Project Staff By Id
+
+Description: Get specific project staff by ID
+
+Method: GET
+
+URL: /project/api/v1/:projectCode/projectstaffs/:id
+
+Response: Single project staff object
+
+Frontend Function: getProjectStaffById() (Note: Queries by staffCode, not _id)
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Add Staff To Project
+
+Description: Add existing staff to a project
+
+Method: POST
+
+URL: /project/api/v1/:projectCode/projectstaffs
+
+Payload: Staff data object
+
+Response: Created project staff record
+
+Frontend Function: addProjectStaff()
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Update Project Staff
+
+Description: Update project-specific staff information
+
+Method: PATCH
+
+URL: /project/api/v1/:projectCode/projectstaffs/:id
+
+Payload: Multipart form data
+
+Response: Updated project staff object
+
+Frontend Function: updateProjectStaff()
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Update Activation Status
+
+Description: Update staff activation status with history tracking
+
+Method: POST
+
+URL: /project/api/v1/:projectCode/projectstaffs/activationhistory
+
+Query Params: staffCode, $select
+
+Payload: Activation reason object
+
+Response: Status update response
+
+Frontend Function: updateActivationStatusHistory()
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Staff Bulk Upload
+
+Description: Bulk create staff from CSV/Excel
+
+Method: POST
+
+URL: admin/api/v1/staffbulkupload (Endpoint: STAFF_BULK_UPLOAD)
+
+Payload: File upload with staff data
+
+Response: Bulk upload results with success/error arrays
+
+Frontend Function: staffBulkUpload()
+
+Service Location: services/staffs/staffs.service.js
+
+//#endregion
+
+//#region Get Staff Designations
+
+Description: Get list of available staff designations
+
+Method: GET
+
+URL: admin/api/v1/designations (Endpoint: STAFF_DESIGNATIONS)
+
+Response: List of designation options
+
+Frontend Function: Not shown but likely used in forms
+
+Service Location: services/staffs/staffdesignations.service.js
+
+//#endregion
+
+
+
+
+
+
+
+
+
+
+
+
+
