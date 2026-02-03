@@ -628,6 +628,940 @@ Service Location: services/staffs/staffdesignations.service.js
 
 //#endregion
 
+//#region Get Group Project Reports Count
+
+Description: Fetches aggregated safety metrics across all projects in a group for dashboard display
+
+Method: POST
+
+URL: /admin/api/v1/user/dashboardcount
+
+Payload:
+{
+  "groupCode": "GRP001",
+  "dashboardCreatedFrom": "2024-01-01",
+  "dashboardCreatedTo": "2024-01-31"
+}
+
+Response: Array of project objects with safety metrics:
+
+[{
+  "[Project Name]": {
+    "inductionTrainings": 120,
+    "toolboxTrainings": 45,
+    "toolboxTrainees": 850,
+    "workPermit": 320,
+    "safetyActionables": 89,
+    "closedSafetyActionables": 78,
+    "incidentReports": 5,
+    "checklistDue": 12,
+    "checklistSubmitted": 150,
+    "checklistAdhoc": 23,
+    "totalTraineesCount": 1020,
+    "workHours": 12500,
+    "violationNotice": 8,
+    "qrEntries": 4500,
+    "qrExit": 4450
+  }
+}]
+
+Class: ProjectsReportscount.class.js
+
+Frontend Function: Used indirectly by getGroupReport()
+
+//#endregion
+
+//#region Get Graph Report Count
+
+Description: Fetches time-series data for specific safety categories across group projects
+
+Method: POST
+
+URL: /admin/api/v1/report-graph-count
+
+Payload:
+{
+  "groupCode": "string",
+  "dashboardCreatedFrom": "date",
+  "dashboardCreatedTo": "date",
+  "category": "inductionTrainings" | "workPermit" | "toolboxTrainings" | etc.
+}
+
+Response: Time-series data for graphs:
+
+{
+  "dates": ["2024-01-01", "2024-01-02", ...],
+  "counts": {
+    "Project A": [10, 15, 20, ...],
+    "Project B": [5, 8, 12, ...]
+  }
+}
+
+Class: ReportsDashboardCount
+
+Frontend Function: getGroupCategoryGraphReport()
+
+//#endregion
+
+//#region Get All Projects Safety Indicators
+
+Description: Fetches comprehensive safety dashboard data for multiple projects
+
+Method: POST (via find() with query params)
+
+URL: /admin/api/v1/user-safety-dashboard
+
+Query Parameters:
+activeProjects: Array of project objects
+safetyDashboardStartDate: Start date
+safetyDashboardEndDate: End date
+
+Response: Transformed safety indicators data with headers and rows
+
+Class: UserSafetyDashboard.class.js
+
+Hooks: permissionCheckHook() - Validates and transforms data
+
+Frontend Function: getAllProjectsIndicatorsData()
+
+//#endregion
+
+//#region Get Group Dashboard Counts (Alternative)
+
+Description: Aggregates dashboard reports count across group projects
+
+Method: POST
+
+URL: /user/dashboardcount
+
+Payload: Same as above
+
+Response: Aggregated counts per project
+
+Frontend Store: useGroupReportStore
+
+//#endregion
+
+//#region Get Project List
+
+Description: Fetches list of projects with optional filtering
+
+Method: GET
+
+URL: /admin/api/v1/projects
+
+Query Parameters:
+projectName: Search by project name
+projectCode: Search by project code
+limit, skip: Pagination
+source: "visitors" (excludes DEMO projects)
+
+Response: Paginated list of projects with subscription status
+
+Hooks:
+before: projectlistforfreemiumvisitors(), filter()
+after:projectPlandetails(),getYouTubeChannelLink()
+
+Frontend Function: getProjectList()
+
+//#endregion
+
+//#region Get Project Details By Id
+
+Description: Get specific project details by projectCode
+
+Method: GET
+
+URL: /admin/api/v1/projects/:projectCode
+
+Response: Project details object
+
+Hooks: before: authenticate("jwt")
+
+Frontend Function: getProjectDetailsByCode(), checkProjectServerIsRunning()
+
+//#endregion
+
+//#region Create New Project (Freemium)
+
+Description: Creates a new freemium project with 30-day trial
+
+Method: POST
+
+URL: /admin/api/v1/projects
+
+Payload: Multipart form data
+projectName: string (required)
+city: string
+address: string
+website: string
+developerName: string
+photo: file (project image)
+deviceCode: string (for consent)
+platformName: string (for consent)
+location: object (geolocation)
+userName: string (query param)
+Response: Created project object
+
+Hooks:
+before: authenticate("jwt"), checkUsersProjects(), generateProjectCodeHook()
+after:addProject(),addProjectToSubscription(),freemiumProjectAdminRegistrationEmail(),addProjectEmail(),updateUserHook()
+
+Frontend Function: Used in project creation flow
+
+//#endregion
+
+//#region Update Project
+
+Description: Update project information
+
+Method: PATCH
+
+URL: /admin/api/v1/projects/:id
+
+Payload: Similar to POST (multipart form data)
+
+Response: Updated project object
+
+Hooks:
+before: authenticate("jwt")
+after:updateProjectInSMP() (syncs with subscription management)
+
+Frontend Function: updateProjectDetails()
+
+//#endregion
+
+//#region Update Project Details
+
+Description: Update project-specific details (separate endpoint)
+
+Method: PATCH
+
+URL: /admin/api/v1/projects/:projectCode/updateproject
+
+Payload: Multipart form data with project details
+
+Response: Updated project details
+
+Frontend Function: updateProjectDetails()
+
+//#endregion
+
+//#region Get Scoring Dashboard
+
+Description: Fetches project scoring data for a specific user/month
+
+Method: GET
+
+URL: /admin/api/v1/projects/:projectCode/scoring-dashboard/:userId?month=...&skip=...&limit=...
+
+Query Parameters:
+month: "January 2024" format
+skip, limit: Pagination
+projectLeader: Filter by leader name
+projectName: Filter by project name
+projectId: Filter by project ID
+averageScore: Array of score bands
+
+Response: Paginated scoring data with weekly breakdown
+
+Class: ScoringDashboard.class.js
+
+Hooks: before: authenticate("jwt")
+
+Frontend Functions: getSCoringDashboardData(), getScoringDashboardDataAll()
+
+Scoring Response Structure:
+{
+  "total": 100,
+  "limit": 10,
+  "skip": 0,
+  "data": [{
+    "projectId": "PROJ001",
+    "project": "Project Name",
+    "leaderName": "John Doe",
+    "activeVersionPublishedDate": "2024-01-15",
+    "leaders": [{...}],
+    "week1": [{
+      "checklistCode": "CHK001",
+      "status": "SUBMITTED",
+      "tasks": [...],
+      "bannerImage": {...},
+      "submittedOn": "2024-01-05T10:30:00Z"
+    }],
+    "week2": [...],
+    "week3": [...],
+    "week4": [...]
+  }]
+}
+
+//#endregion
+
+//#region Create Project Plan Expiry Notification
+
+Description: Creates plan expiry record and sends notifications
+
+Method: POST
+
+URL: /admin/api/v1/projectplanexpiry
+
+Payload: Project expiry details
+
+Response: Created expiry record
+
+Hooks:
+after: expiryNotificationandEmail() - Sends emails to admins
+
+Class: Projectplanexpiry.class.js
+
+//#endregion
+
+//#region Get Project Plan Expiry Details
+
+Description: Fetch project plan expiry information
+
+Method: GET
+
+URL: /admin/api/v1/projectplanexpiry
+
+Response: List of project expiry records
+
+Hooks: before**:authenticate("jwt")
+
+//#endregion
+
+//#region Get User's Active Projects
+
+Description: Fetches active projects for the authenticated user
+
+Method: GET
+
+URL: /admin/api/v1/user/activeprojects
+
+Response: List of active projects with details
+
+Class: UsersActiveProjectList
+
+//#endregion
+
+//#region Invite New User
+
+Description: Sends invitation to new user
+
+Method: POST
+
+URL: /admin/api/v1/invite-user
+
+Payload: User invitation details
+
+Response: Invitation status
+
+Class: InviteUser.class.js
+
+Hooks: inviteUserHook
+
+//#endregion
+
+//#region Get Freemium Projects
+
+Description: Fetches freemium projects for users
+
+Method: GET
+
+URL: /admin/api/v1/getFreemiumProjects
+
+Response: List of freemium projects
+
+Hooks: getFreemiumProjectsHook
+
+//#endregion
+
+//#region Get Projects for Visitors
+
+Description: Fetches projects excluding DEMO_ prefixed ones (for public viewing)
+
+Method: GET
+
+URL: /admin/api/v1/projects?source=visitors
+
+Response: Filtered project list
+
+Hook: projectlistforfreemiumvisitors()
+
+//#endregion
+
+//#region Project Bulk Upload Search
+
+Description: Special endpoint for bulk upload operations
+
+Method: GET
+
+URL: /admin/api/v1/project/bulkupload/search
+
+Response: Project search results
+
+Class: Projects (same as main service)
+
+//#endregion
+
+//#region Get All Labours (Admin)
+
+Description: Fetch paginated list of all labours with search/filter capabilities for admin users
+
+Method: GET
+
+URL: /admin/api/v1/labours
+
+Query Parameters:
+$skip, $limit: Pagination
+labourName, labourCode, contactNumber: Search filters
+gender, isActive, contractorFirmName: Filters
+createdAtFrom, createdAtTo: Date ranges
+$sort: Sorting (e.g., createdAt: -1)
+
+Response: Paginated list of labour objects with metadata
+
+Hooks:
+before: selectLimitSkip(), laboursfilters()
+
+Frontend Functions: getallLabours(), getTotalLabours()
+
+//#endregion
+
+//#region Get Labour by ID (Admin)
+
+Description: Get specific labour by MongoDB _id
+
+Method: GET
+
+URL: /admin/api/v1/labours/:id
+
+Response: Single labour object
+
+Hooks: before: selectLimitSkip()
+
+Frontend Function: getLabourById()
+
+//#endregion
+
+//#region Create New Labour (Admin)
+
+Description: Create new labour record with file uploads
+
+Method: POST
+
+URL: /admin/api/v1/labours
+
+Payload: Form data with file uploads
+
+javascript
+{
+  "firstName": "string",
+  "lastName": "string",
+  "contactNumber": "string",
+  "gender": "string",
+  "dateOfBirth": "date",
+  "aadhaarNumber": "string",
+  "address": "string",
+  "currentAddressType": "SAME_AS_PERMANENT|MANUAL_INPUT|LABOUR_CAMP",
+  "labourCampQuarter": {  // if LABOUR_CAMP
+    "labourCampId": "string",
+    "quarterName": "string",
+    "labourCampProjectCode": "string"
+  },
+  "dependants": [{
+    "dependantName": "string",
+    "relation": "string",
+    "dateOfBirth": "date",
+    "contactNumber": "string"
+  }],
+  "bankDetails": {
+    "bankName": "string",
+    "accountNumber": "string",
+    "ifscNumber": "string"
+  },
+  "contractorFirmDetailsF": [{...}],
+  "tradesF": [{...}],
+  "profilePhoto": File,
+  "idProofPhotos": [File],
+  "fitnessCertificateDocuments": [File],
+  "source": "Admin"
+}
+Response: Created labour object
+
+Hooks:
+
+before: authenticate("jwt"), checkLabourCampAvailability()
+
+after: uploadLabourPhoto(),updateCampStatusOnly()
+
+Frontend Functions: addLabour()
+
+//#endregion
+
+//#region Update Labour (Admin)
+
+Description: Update labour information with file uploads
+
+Method: PATCH
+
+URL: /admin/api/v1/labours/:id
+
+Payload: Similar to POST (form data)
+
+Response: Updated labour object
+
+Hooks:
+before:authenticate("jwt"),checkLabourCampAvailability()
+after:uploadLabourPhoto(),updateCampStatusOnly()
+
+Frontend Functions: editLabour()
+
+//#endregion
+
+//#region Get Project Labours
+
+Description: Fetch labours for specific project with project-specific details
+
+Method: GET
+
+URL: /admin/api/v1/web/labour?projectCode=...
+
+Query Parameters:
+
+projectCode: Required project code
+
+Other search/filter parameters
+
+Response: Project-specific labour data
+
+Hooks:
+
+before:authenticate("jwt"),getProjectLabourDetailsBeforeHook()
+
+after:getProjectLabourDetailsHook()
+
+Frontend Function: getProjectLabours()
+
+//#endregion
+
+//#region Create Project Labour
+
+Description: Create labour with project-specific assignment
+
+Method: POST
+
+URL: /admin/api/v1/web/labour
+
+Payload: Similar to admin labour but with project context
+
+Response: Created project labour
+
+Hooks:
+
+before:authenticate("jwt"),labourfieldvalidations(),generateUniqueId(),uniqueLabourHook(),saveAndUpdateAdminFitnessCertificate(),validateLabourCampAvailability()
+
+after:updateLabourCampStatus(),saveProjectLabours()
+
+Frontend Function: postProjectSpecificLabours()
+
+//#endregion
+
+//#region Update Project Labour
+
+Description: Update project-specific labour information
+
+Method: PATCH
+
+URL: /admin/api/v1/web/labour/:id
+
+Payload: Form data with project updates
+
+Response: Updated project labour
+
+Hooks:
+
+before:authenticate("jwt"),labourfieldvalidations(),uniqueLabourHook(),validateTradesAndContractorFirmsHook(),saveAndUpdateAdminFitnessCertificate(),validateLabourCampAvailability()
+
+after**:updateLabourCampStatus(),postProjectLabourDataHook(),saveProjectLabours()
+
+Frontend Function: editManagerLabour()
+
+//#endregion
+
+//#region Get Labours with Contractor Info
+
+Description: Fetch labours with contractor information for admin view
+
+Method: GET
+
+URL: /admin/labour
+
+Query Parameters: Standard search/filter params
+
+Response: Labour list with contractor details
+
+Hooks: before**:authenticate("jwt"),getContractorByprojecthook()
+
+Frontend Function: Not directly used, but similar to getallLabours()
+
+//#endregion
+
+//#region Export Labour Data
+
+Description: Export labour data for reporting purposes
+
+Method: POST
+
+URL: admin/api/v1/export/labour
+
+Payload: Export configuration
+
+Response: Labour data in export format
+
+Hooks: before**:authenticate("jwt"),getAllLaoursDataHook()
+
+Frontend Functions: exportProjectLabours(), exportAdminLabours()
+
+//#endregion
+
+//#region Bulk Upload Labours
+
+Description: Bulk create labours from CSV/Excel file
+
+Method: POST
+
+URL: /admin/api/v1/labour/bulk-upload
+
+Payload: Multipart form data with file
+
+Response: Bulk upload results with success/error arrays
+
+Frontend Function: labourBulkUpload()
+
+//#endregion
+
+//#region CSV Bulk Upload
+
+Description: Generic CSV bulk upload for labours
+
+Method: POST
+
+URL: /admin/api/v1/bulk-upload/csv
+
+Payload: Form data with CSV file
+
+Response: Upload results
+
+Frontend Function: labourBulkUploadCSV()
+
+//#endregion
+
+//#region Get Labour Profile Photos
+
+Description: Serve labour profile photos from MinIO storage
+
+Method: GET
+
+URL: /admin/api/v1/inducteephotos/:fileName
+
+Response: Image file with proper content-type
+
+Storage: MinIO bucket: admin/uploads/inductiontraining/photos/
+
+//#endregion
+
+//#region Get ID Proof Photos
+
+Description: Serve labour ID proof documents
+
+Method: GET
+
+URL: admin/api/v1/inducteeidproofphotos/:fileName
+
+Response: Image file
+
+Storage: MinIO bucket: admin/uploads/inductiontraining/idproofphotos/
+
+//#endregion
+
+//#region Get Fitness Certificates
+Description: Serve fitness certificate documents
+
+Method: GET
+
+URL: admin/api/v1/fitnesscertificates/:fileName
+
+Response: Document file
+
+Storage: MinIO bucket: admin/uploads/inductiontraining/fitnesscertificates/
+
+//#endregion
+
+//#region Get Labour Professional Details
+
+Description: Fetch professional details (experience, skills) for a labour
+
+Method: GET
+
+URL: /admin/api/v1/labour/professional-details?labourCode=...
+
+Response: Professional details object
+
+Frontend Function: getLabourProfessionalDetails()
+
+//#endregion
+
+//#region Get Contractors
+
+Description: Fetch contractor firms with filtering
+
+Method: GET
+
+URL: /admin/api/v1/contractors
+
+Query Parameters:
+
+projectCode: Filter by project
+
+contractorFirmName: Search by name
+
+isActive: Filter by status
+
+Response: List of contractor firms
+
+Frontend Functions: getAllContractor(), getContractorsByProjectCode()
+
+//#endregion
+
+//#region Get Trade Categories
+
+Description: Fetch available trade categories
+
+Method: GET
+
+URL: /admin/api/v1/tradecategories
+
+Response: List of trade categories
+
+Frontend Function: getallTrades()
+
+//#endregion
+
+//#region Get Dependent Relations
+
+Description: Fetch relationship options for dependants
+
+Method: GET
+
+URL: /admin/api/v1/dependantsrelations
+
+Response: List of relationship types
+
+Frontend Function: getAllEmergencyRelations(), fetchRelations()
+
+//#endregion
+
+//#region Get Labour Form Fields
+
+Description: Fetch form field configurations for labour forms
+
+Method: GET
+
+URL: /admin/api/v1/labour/formfields
+
+Response: Form field configuration array
+
+Frontend Function: getAllLabourFormFields()
+
+//#endregion
+
+//#region Get Project Labours
+
+Description: Fetch labour data specific to a project
+
+Method: GET
+
+URL: /admin/api/v1/projects/:projectCode/projectlabours
+
+Query Parameters:
+labourCode: Get specific labour
+$skip, $limit: Pagination
+Other filters
+
+Response: Project-specific labour data
+
+Frontend Functions: getProjectLabours(), getProjectLabourById(), getTotalProjectLabours()
+
+//#endregion
+
+//#region Update Activation Status
+
+Description: Update labour activation status with history
+
+Method: POST
+
+URL: /admin/api/v1/projects/:projectCode/projectlabour/activationhistory?labourCode=...
+
+Payload: Activation reason object
+
+Response: Updated status
+
+Frontend Function: updateActivationStatusHistory()
+
+//#endregion
+
+//#region Add Labours to Project
+
+Description: Add multiple labours to a project
+
+Method: POST
+
+URL: /admin/api/v1/projects/:projectCode/project/labours
+
+Payload: Array of labour details
+
+Response: Bulk addition results
+
+Frontend Function: postProjectSpecificLabours()
+
+//#endregion
+
+//#region Get Labour Camp Address
+
+Description: Fetch address of labour camp for a project
+
+Method: GET
+
+URL: /admin/api/v1/labourcampaddress?projectCode=...
+
+Response: Labour camp address
+
+Frontend Function: getLabourCampAddress()
+
+//#endregion
+
+//#region Get Labour Camps
+
+Description: Fetch labour camps for a project
+
+Method: GET
+
+URL: /admin/api/v1/projects/:projectCode/labourcamps
+
+Response: List of labour camps with occupancy status
+
+Frontend Functions: fetchQuarterDetails(), fetchOccupiedLabourCamps()
+
+//#endregion
+
+//#region Get Fitness Certificates
+
+Description: Fetch fitness certificate details for project labour
+
+Method: GET
+
+URL: /admin/api/v1/inducteephotos/:projectCode/projectlabours?labourCode=...&$select=validFitnessCertificateDetails,expiredFitnessCertificateDetails
+
+Response: Valid and expired fitness certificates
+
+Frontend Function: getMangerFitnessCertificateDetails()
+
+//#endregion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
